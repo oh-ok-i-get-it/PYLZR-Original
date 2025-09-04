@@ -15,7 +15,7 @@ from ..modes import SoundMode, set_cutoff
 from ..audio import AudioInput, FFTWorker
 
 # Cutoff Sliders Max Value
-CUTOFF_SLIDER_MAX = 10_000
+CUTOFF_SLIDER_MAX = 40_000
 
 class PyLZR(QWidget):
     processAudio = pyqtSignal(np.ndarray)
@@ -27,6 +27,7 @@ class PyLZR(QWidget):
         self.LOW_QUIET_MODE_CUTOFF   = 100
         self.LOW_MODE1_CUTOFF        = 300
         self.LOW_MODE2_CUTOFF        = 500
+
         self.HIGH_QUIET_MODE_CUTOFF  = 100
         self.HIGH_MODE1_CUTOFF       = 300
         self.HIGH_MODE2_CUTOFF       = 500
@@ -228,7 +229,10 @@ class PyLZR(QWidget):
             sum_l=sum(self._low_means);sum_h=sum(self._high_means)
             self.low_avg=sum_l*self._low_scale;self.high_avg=sum_h*self._high_scale
             self._low_means.clear();self._high_means.clear()
-            self.dm_count=(self.dm_count+1)%int(self.dm_rate)
+            self.dm_count=(self.dm_count+1)
+            if self.dm_count>=120: #check toggle dm
+                self.soundmode.toggle_dm_mode() # toggle dm and reset counter
+                self.dm_count=0 
             if self.vm.sm_ON: self.soundmode.check_mode(self.low_avg,self.high_avg)
             print(f"{txt.YELLOW}{txt.I}LOW: {txt.IOFF}{txt.B}{self.low_avg:.2f}{txt.BOFF}\t"+ 
                   f"{txt.PURPLE}{txt.I}HIGH: {txt.IOFF}{txt.B}{self.high_avg:.2f}{txt.RESET}")

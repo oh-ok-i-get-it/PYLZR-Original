@@ -57,7 +57,7 @@ class SoundMode():
         self.high_prev_mode = 0
 
         # Dual Mode
-        self.dm_ON = False
+        self.dm_ON = True # !!!!!!!!!!!!!!!
 
         self.SPACE = 106 #108
 
