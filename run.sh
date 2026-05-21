@@ -20,11 +20,18 @@ color_print() {
   printf "%b\n" "${color}$*${RESET}"
 }
 
+# Hash a file using Python (cross-platform, always available)
+file_hash() {
+  python3 -c "import hashlib; print(hashlib.sha256(open('$1','rb').read()).hexdigest())"
+}
+
 # Create the venv if needed
+VENV_IS_NEW=false
 if [ ! -d ".venv" ]; then
     color_print "$BLUE${BOLD}${ITALICS}" "Creating virtual environment..."
     python3 -m venv .venv
     color_print "$GREEN${BOLD}" "Virtual environment created successfully.\n"
+    VENV_IS_NEW=true
 else
     color_print "$YELLOW${BOLD}" "Virtual environment already exists.\n"
 fi
@@ -35,25 +42,41 @@ source .venv/bin/activate
 color_print "$GREEN${BOLD}" "Virtual environment activated successfully.\n"
 
 
-# Upgrade pip/setuptools/wheel
-color_print "$BLUE${BOLD}${ITALICS}" "Upgrading pip, setuptools, and wheel..."
-pip install --upgrade pip setuptools wheel
-color_print "$GREEN${BOLD}" "Upgraded successfully.\n"
+# Upgrade pip/setuptools/wheel only on fresh venv
+if [ "$VENV_IS_NEW" = true ]; then
+    color_print "$BLUE${BOLD}${ITALICS}" "Upgrading pip, setuptools, and wheel..."
+    pip install --upgrade pip setuptools wheel
+    color_print "$GREEN${BOLD}" "Upgraded successfully.\n"
+fi
 
 
-# Install dependencies
-color_print "$BLUE${BOLD}${ITALICS}" "Installing requirements.txt dependencies..."
-pip install -r requirements.txt
-color_print "$GREEN${BOLD}" "Dependencies installed successfully.\n"
+# Install dependencies only if requirements.txt has changed
+REQ_HASH_FILE=".venv/.req_hash"
+CURRENT_REQ_HASH=$(file_hash requirements.txt)
+if [ ! -f "$REQ_HASH_FILE" ] || [ "$(cat "$REQ_HASH_FILE")" != "$CURRENT_REQ_HASH" ]; then
+    color_print "$BLUE${BOLD}${ITALICS}" "Installing requirements.txt dependencies..."
+    pip install -r requirements.txt
+    echo "$CURRENT_REQ_HASH" > "$REQ_HASH_FILE"
+    color_print "$GREEN${BOLD}" "Dependencies installed successfully.\n"
+else
+    color_print "$YELLOW${BOLD}" "Dependencies up to date, skipping install.\n"
+fi
 
 
-# Install in editable mode
-color_print "$BLUE${BOLD}${ITALICS}" "Installing PyLZR in editable mode..."
-pip install -e .
-color_print "$GREEN${BOLD}" "PyLZR installed successfully.\n"
+# Install in editable mode only if pyproject.toml has changed
+PKG_HASH_FILE=".venv/.pkg_hash"
+CURRENT_PKG_HASH=$(file_hash pyproject.toml)
+if [ ! -f "$PKG_HASH_FILE" ] || [ "$(cat "$PKG_HASH_FILE")" != "$CURRENT_PKG_HASH" ]; then
+    color_print "$BLUE${BOLD}${ITALICS}" "Installing PyLZR in editable mode..."
+    pip install -e .
+    echo "$CURRENT_PKG_HASH" > "$PKG_HASH_FILE"
+    color_print "$GREEN${BOLD}" "PyLZR installed successfully.\n"
+else
+    color_print "$YELLOW${BOLD}" "PyLZR package up to date, skipping install.\n"
+fi
 
 
-# Launch 
+# Launch
 color_print "\n${MAGENTA}${BOLD}${ITALICS}" "Launching ${CYAN}${ITALICS_OFF}PyLZR...\n"
 
 if command -v pylzr &> /dev/null; then
@@ -61,6 +84,5 @@ if command -v pylzr &> /dev/null; then
     exec pylzr "$@"
 else
     color_print "$RED${BOLD}" "${ITALICS}pylzr ${ITALICS_OFF}${YELLOW}command not found - running module directly. \n\tProceeding to execute...\n"
-    exec -m pylzr "$@"
+    exec python3 -m pylzr "$@"
 fi
-
