@@ -22,7 +22,7 @@ class AudioInput:
 
         # Precomputed axes for waveform and spectrum plots
         self.waveform_x = np.arange(0, 2 * chunk, 2)
-        self.f_low  = np.linspace(0,          rate / 128, self.lo_cut)
+        self.f_low  = np.linspace(rate / chunk, rate / 128, self.lo_cut)
         self.f_med  = np.linspace(rate / 128, rate / 4,  self.med_cut - self.lo_cut)
         self.f_high = np.linspace(rate / 4,   rate / 2,  self.hi_cut  - self.med_cut)
 
