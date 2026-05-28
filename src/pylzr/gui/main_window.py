@@ -84,7 +84,7 @@ class PyLZR(QWidget):
         try:
             chunk = self.audio.read_chunk()
             wf = np.empty(self.audio.chunk, dtype=np.int16)
-            wf[:] = chunk + 127
+            wf[:] = chunk + 128
             self.spectrum_widget.update_waveform(wf)
             self._processAudio.emit(wf.copy())
         except IOError as e:
