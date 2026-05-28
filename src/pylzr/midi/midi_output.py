@@ -1,6 +1,7 @@
 import threading
 import rtmidi as midi
 from ..core import text_styles as txt
+from ..core.app_logger import logger
 
 
 class MIDIOutput:
@@ -18,8 +19,10 @@ class MIDIOutput:
         available = self.midiout.get_ports()
         if available:
             self.midiout.open_port(0)
+            logger.info(f'MIDI: opened port "{available[0]}"')
         else:
             self.midiout.open_virtual_port('PyLZR-MIDI')
+            logger.info('MIDI: created virtual port "PyLZR-MIDI"')
 
         self.sm_ON = False
 
@@ -43,6 +46,8 @@ class MIDIOutput:
     def toggle_sm(self):
         if self.sm_ON:
             print(f"\n{self._SM_OFF_TXT}#### {self._SM_OFF_TXT_B}SOUND MODE OFF{self._SM_OFF_TXT} ####\n{txt.RESET}")
+            logger.info('Sound mode: OFF')
         else:
             print(f"\n{self._SM_ON_TXT}#### {self._SM_ON_TXT_B}SOUND MODE ON{self._SM_ON_TXT} ####\n{txt.RESET}")
+            logger.info('Sound mode: ON')
         self.sm_ON = not self.sm_ON

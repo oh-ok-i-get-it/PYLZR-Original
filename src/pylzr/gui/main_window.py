@@ -10,11 +10,13 @@ from ..core import (
     WINDOW_W, WINDOW_H,
 )
 from ..core import text_styles as txt
+from ..core.app_logger import logger
 from ..audio    import AudioInput
 from ..analysis import FFTWorker, AudioAnalyzer, SoundMode
 from ..midi     import MIDIOutput, KeyboardMapper
 from .spectrum_widget import SpectrumWidget
 from .control_panel   import ControlPanel
+from .log_panel       import LogPanel
 
 
 class PyLZR(QWidget):
@@ -47,10 +49,16 @@ class PyLZR(QWidget):
         # GUI panels
         self.spectrum_widget = SpectrumWidget(self.audio)
         self.controls        = ControlPanel()
+        self.log_panel       = LogPanel()
+
         layout = QVBoxLayout()
         layout.addWidget(self.controls)
         layout.addWidget(self.spectrum_widget)
+        layout.addWidget(self.log_panel)
         self.setLayout(layout)
+
+        # Logger → log panel
+        logger.message_logged.connect(self.log_panel.append_message)
 
         # Control panel → subsystem wiring
         self.controls.count_rate_changed.connect(self._on_count_rate)
@@ -83,12 +91,13 @@ class PyLZR(QWidget):
     def _update(self):
         try:
             chunk = self.audio.read_chunk()
-            wf = np.empty(self.audio.chunk, dtype=np.int16)
-            wf[:] = chunk + 128
-            self.spectrum_widget.update_waveform(wf)
-            self._processAudio.emit(wf.copy())
+            # Normalize int16 (±32767) to 0-255 for display; raw chunk is already zero-mean for FFT
+            wf_display = ((chunk.astype(np.int32) >> 8) + 128).astype(np.int16)
+            self.spectrum_widget.update_waveform(wf_display)
+            self._processAudio.emit(chunk.copy())
         except IOError as e:
             print(f'Audio I/O Error: {e}')
+            logger.error(f'Audio I/O Error: {e}')
 
     @pyqtSlot(np.ndarray, np.ndarray, np.ndarray)
     def _on_spectrum_ready(self, low: np.ndarray, med: np.ndarray, high: np.ndarray):

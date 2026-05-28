@@ -1,6 +1,7 @@
 import pyaudio
 import numpy as np
 from ..core import CHUNK, SAMPLE_RATE
+from ..core.app_logger import logger
 
 
 class AudioInput:
@@ -37,6 +38,7 @@ class AudioInput:
             output=True,
             frames_per_buffer=chunk,
         )
+        logger.info(f'Audio: stream opened (chunk={chunk}, rate={rate} Hz)')
 
     def read_chunk(self) -> np.ndarray:
         """Read one chunk from the hardware stream. Returns int16 array."""
@@ -47,3 +49,4 @@ class AudioInput:
         self._stream.stop_stream()
         self._stream.close()
         self._pa.terminate()
+        logger.info('Audio: stream closed')
