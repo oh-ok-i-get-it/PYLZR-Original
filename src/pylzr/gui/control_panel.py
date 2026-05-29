@@ -9,6 +9,11 @@ from ..core import (
     DEFAULT_LOW_THRESHOLDS, DEFAULT_HIGH_THRESHOLDS,
 )
 
+_MODE_DISPLAY_STYLE = (
+    'QLabel {{ background-color: #111; color: {color}; border: 1px solid #444;'
+    ' font-weight: bold; font-size: 13px; padding: 2px 6px; }}'
+)
+
 
 class ControlPanel(QWidget):
     """Slider and button panel for runtime parameter control.
@@ -34,13 +39,16 @@ class ControlPanel(QWidget):
         root.setContentsMargins(4, 4, 4, 4)
         root.setSpacing(4)
 
-        # ── Top row: avg-rate slider + sound mode button ──────────────
+        # ── Top row: avg-rate slider | sound mode button | mode displays ─
         top_row = QHBoxLayout()
         top_row.setSpacing(8)
 
+        # Avg-rate slider (compact fixed width)
         rate_group = QGroupBox('Avgs Calc Rate')
+        rate_group.setMaximumWidth(200)
         rate_layout = QVBoxLayout()
-        rate_layout.setContentsMargins(4, 4, 4, 4)
+        rate_layout.setContentsMargins(4, 2, 4, 2)
+        rate_layout.setSpacing(1)
         self._count_label = QLabel(str(AVG_COUNT_RATE_DEFAULT))
         self._count_label.setStyleSheet('font-weight: bold;')
         count_slider = QSlider(Qt.Horizontal)
@@ -53,6 +61,7 @@ class ControlPanel(QWidget):
         rate_layout.addWidget(self._count_label)
         rate_group.setLayout(rate_layout)
 
+        # Sound mode toggle button
         self._sm_button = QPushButton('Sound Mode: OFF')
         self._sm_button.setCheckable(True)
         self._sm_button.setFixedHeight(52)
@@ -63,11 +72,18 @@ class ControlPanel(QWidget):
         )
         self._sm_button.clicked.connect(lambda: self.sound_mode_toggled.emit())
 
-        top_row.addWidget(rate_group, stretch=1)
+        # Current sound mode index displays (LOW / HIGH)
+        self._low_mode_display  = self._make_mode_display('LOW',  '—', '#d4a017')
+        self._high_mode_display = self._make_mode_display('HIGH', '—', '#9b59b6')
+
+        top_row.addWidget(rate_group)
         top_row.addWidget(self._sm_button)
+        top_row.addWidget(self._low_mode_display)
+        top_row.addWidget(self._high_mode_display)
+        top_row.addStretch(1)
         root.addLayout(top_row)
 
-        # ── Bottom row: low cutoffs (left) | high cutoffs (right) ─────
+        # ── Cutoff row: low (left) | high (right) ────────────────────────
         cutoff_row = QHBoxLayout()
         cutoff_row.setSpacing(8)
 
@@ -76,9 +92,9 @@ class ControlPanel(QWidget):
         self._high_sliders = []
         self._high_labels  = []
 
-        for side, label_prefix, cutoffs, sliders_list, labels_list, callback in (
-            ('Low Cutoffs',  'Low',  self._low_cutoffs,  self._low_sliders,  self._low_labels,  self._on_low_cutoff),
-            ('High Cutoffs', 'High', self._high_cutoffs, self._high_sliders, self._high_labels, self._on_high_cutoff),
+        for side, cutoffs, sliders_list, labels_list, callback in (
+            ('Low Cutoffs',  self._low_cutoffs,  self._low_sliders,  self._low_labels,  self._on_low_cutoff),
+            ('High Cutoffs', self._high_cutoffs, self._high_sliders, self._high_labels, self._on_high_cutoff),
         ):
             group = QGroupBox(side)
             glayout = QVBoxLayout()
@@ -100,16 +116,28 @@ class ControlPanel(QWidget):
 
         root.addLayout(cutoff_row)
 
-        # ── Status label ──────────────────────────────────────────────
+        # ── Status label ──────────────────────────────────────────────────
         self.status_label = QLabel('Press any key')
         root.addWidget(self.status_label)
 
         self.setLayout(root)
 
+    @staticmethod
+    def _make_mode_display(band: str, value: str, color: str) -> QLabel:
+        lbl = QLabel(f'{band}\n{value}')
+        lbl.setAlignment(Qt.AlignCenter)
+        lbl.setFixedSize(54, 52)
+        lbl.setStyleSheet(_MODE_DISPLAY_STYLE.format(color=color))
+        return lbl
+
     def sync_sound_mode(self, is_on: bool):
-        """Sync button visual state to the current sound mode flag."""
         self._sm_button.setChecked(is_on)
         self._sm_button.setText('Sound Mode: ON' if is_on else 'Sound Mode: OFF')
+
+    def update_sound_modes(self, low_mode: int, high_mode: int):
+        """Update the LOW/HIGH mode index displays."""
+        self._low_mode_display.setText(f'LOW\n{"—" if low_mode < 0 else low_mode}')
+        self._high_mode_display.setText(f'HIGH\n{"—" if high_mode < 0 else high_mode}')
 
     def _on_count_rate(self, val: int):
         self._count_label.setText(str(val))

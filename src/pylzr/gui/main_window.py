@@ -117,6 +117,7 @@ class PyLZR(QWidget):
                 f'Low Avg: {low_avg:.6f} | High Avg: {high_avg:.6f}'
             )
             self.avg_panel.append_avgs(low_avg, high_avg)
+            self.controls.update_sound_modes(self.soundmode.low_mode, self.soundmode.high_mode)
             print(
                 f'{txt.YELLOW}{txt.I}LOW: {txt.IOFF}{txt.B}{low_avg:.2f}{txt.BOFF}\t'
                 f'{txt.PURPLE}{txt.I}HIGH: {txt.IOFF}{txt.B}{high_avg:.2f}{txt.RESET}'
