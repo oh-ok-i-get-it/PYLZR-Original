@@ -67,7 +67,7 @@ class PyLZR(QWidget):
         self.settings_panel = SettingsPanel(self)
         self.settings_panel.hide()
 
-        # Populate connection indicators and device list once subsystems are live
+        # Populate settings panel with live subsystem data
         self.settings_panel.set_audio_status(True, self.audio.device_name)
         self.settings_panel.set_midi_status(True, self.midi_out.port_name)
         self.settings_panel.set_dmx_status()
@@ -85,9 +85,23 @@ class PyLZR(QWidget):
         self.controls.sound_mode_toggled.connect(self._toggle_sound_mode)
         self.controls.settings_toggled.connect(self._toggle_settings)
 
-        # Settings panel signals
+        # Settings panel → subsystem wiring
         self.settings_panel.audio_device_changed.connect(self._on_audio_device_changed)
+        self.settings_panel.audio_gain_changed.connect(self._on_gain_changed)
+        self.settings_panel.fft_window_changed.connect(self._on_fft_window_changed)
+        self.settings_panel.smoothing_changed.connect(self._on_smoothing_changed)
+        self.settings_panel.log_level_changed.connect(self._on_log_level_changed)
+        self.settings_panel.app_sm_toggled.connect(self._toggle_sound_mode)
         self.settings_panel.control_mode_changed.connect(self._on_control_mode_changed)
+
+        # Runtime state
+        self._audio_gain   = 1.0
+        self._smoothing    = 0.0
+        self._smooth_low   = None
+        self._smooth_med   = None
+        self._smooth_high  = None
+        self._fft_frames   = 0
+        self._overflow_count = 0
 
         # FFT worker thread
         self.fft_thread = QThread(self)
@@ -96,16 +110,22 @@ class PyLZR(QWidget):
             lo_cut=self.audio.lo_cut,
             med_cut=self.audio.med_cut,
             hi_cut=self.audio.hi_cut,
+            chunk=self.audio.chunk,
         )
         self.fft_worker.moveToThread(self.fft_thread)
         self.fft_thread.start()
         self._processAudio.connect(self.fft_worker.process, Qt.QueuedConnection)
         self.fft_worker.resultReady.connect(self._on_spectrum_ready)
 
-        # Update timer
+        # Update timer (audio loop)
         self.timer = QTimer()
         self.timer.timeout.connect(self._update)
         self.timer.start(self.audio.timer_interval_ms)
+
+        # Diagnostics timer (1 Hz)
+        self._diag_timer = QTimer()
+        self._diag_timer.timeout.connect(self._update_diagnostics)
+        self._diag_timer.start(1000)
 
     # ------------------------------------------------------------------
     # Audio loop
@@ -114,17 +134,51 @@ class PyLZR(QWidget):
     def _update(self):
         try:
             chunk = self.audio.read_chunk()
-            # Normalize int16 (±32767) to 0-255 for display; raw chunk is already zero-mean for FFT
+
+            # Apply input gain
+            if self._audio_gain != 1.0:
+                chunk = np.clip(
+                    chunk.astype(np.float32) * self._audio_gain, -32767, 32767
+                ).astype(np.int16)
+
+            # Level meter (only when panel is visible — saves ~0.1ms/frame otherwise)
+            if self.settings_panel.isVisible():
+                peak = float(np.max(np.abs(chunk))) / 32767.0
+                self.settings_panel.set_level(peak, clipping=peak >= 0.99)
+
+            # Normalize int16 (±32767) → 0–255 for waveform display
             wf_display = ((chunk.astype(np.int32) >> 8) + 128).astype(np.int16)
             self.spectrum_widget.update_waveform(wf_display)
             self._processAudio.emit(chunk.copy())
+
         except IOError as e:
+            self._overflow_count += 1
             print(f'Audio I/O Error: {e}')
             logger.error(f'Audio I/O Error: {e}')
 
     @pyqtSlot(np.ndarray, np.ndarray, np.ndarray)
     def _on_spectrum_ready(self, low: np.ndarray, med: np.ndarray, high: np.ndarray):
-        self.spectrum_widget.update_spectrum(low, med, high)
+        self._fft_frames += 1
+
+        # Apply display smoothing (EMA) — does not affect analysis accuracy
+        if self._smoothing > 0.0:
+            a = self._smoothing
+            if self._smooth_low is None:
+                self._smooth_low  = low.copy()
+                self._smooth_med  = med.copy()
+                self._smooth_high = high.copy()
+            else:
+                self._smooth_low  = a * self._smooth_low  + (1 - a) * low
+                self._smooth_med  = a * self._smooth_med  + (1 - a) * med
+                self._smooth_high = a * self._smooth_high + (1 - a) * high
+            dl, dm, dh = self._smooth_low, self._smooth_med, self._smooth_high
+        else:
+            dl, dm, dh = low, med, high
+            self._smooth_low = self._smooth_med = self._smooth_high = None
+
+        self.spectrum_widget.update_spectrum(dl, dm, dh)
+
+        # Analysis uses raw (unsmoothed) band means
         result = self.analyzer.push(low.mean(), high.mean())
         if result is not None:
             low_avg, high_avg = result
@@ -138,6 +192,11 @@ class PyLZR(QWidget):
                 f'{txt.YELLOW}{txt.I}LOW: {txt.IOFF}{txt.B}{low_avg:.2f}{txt.BOFF}\t'
                 f'{txt.PURPLE}{txt.I}HIGH: {txt.IOFF}{txt.B}{high_avg:.2f}{txt.RESET}'
             )
+
+    def _update_diagnostics(self):
+        fps, self._fft_frames = self._fft_frames, 0
+        if self.settings_panel.isVisible():
+            self.settings_panel.set_diagnostics(fps, self._overflow_count)
 
     # ------------------------------------------------------------------
     # Control panel handlers
@@ -155,21 +214,24 @@ class PyLZR(QWidget):
 
     def _toggle_sound_mode(self):
         self.midi_out.toggle_sm()
-        self.controls.sync_sound_mode(self.midi_out.sm_ON)
+        is_on = self.midi_out.sm_ON
+        self.controls.sync_sound_mode(is_on)
+        self.settings_panel.sync_sound_mode(is_on)
 
     def _toggle_settings(self):
         visible = not self.settings_panel.isVisible()
         if visible:
             gear = self.controls._gear_btn
-            # Bottom-right corner of gear button in main window coordinates
             br = gear.mapTo(self, QPoint(gear.width(), gear.height()))
             pw = self.settings_panel.width()
-            # Right-align panel to gear button; clamp so it doesn't clip left edge
-            x = max(0, br.x() - pw)
-            self.settings_panel.move(x, br.y())
+            self.settings_panel.move(max(0, br.x() - pw), br.y())
             self.settings_panel.raise_()
         self.settings_panel.setVisible(visible)
         self.controls.sync_gear(visible)
+
+    # ------------------------------------------------------------------
+    # Settings panel handlers
+    # ------------------------------------------------------------------
 
     def _on_audio_device_changed(self, device_index: int):
         self.timer.stop()
@@ -184,6 +246,23 @@ class PyLZR(QWidget):
             logger.error(f'Audio device switch failed: {e}')
             self.settings_panel.set_audio_status(False, 'Switch failed')
         self.timer.start(self.audio.timer_interval_ms)
+
+    def _on_gain_changed(self, gain: float):
+        self._audio_gain = gain
+
+    def _on_fft_window_changed(self, name: str):
+        # set_window runs directly — single-frame transition artefact is imperceptible
+        self.fft_worker.set_window(name)
+        logger.info(f'FFT window: {name}', '#8a8a8a')
+
+    def _on_smoothing_changed(self, value: float):
+        self._smoothing = value
+        if value == 0.0:
+            self._smooth_low = self._smooth_med = self._smooth_high = None
+
+    def _on_log_level_changed(self, level: str):
+        logger.set_min_level(level)
+        logger.info(f'Log level: {level}', '#8a8a8a')
 
     def _on_control_mode_changed(self, mode: str):
         if mode == 'DMX':
@@ -210,6 +289,7 @@ class PyLZR(QWidget):
         super().keyPressEvent(event)
 
     def closeEvent(self, event):
+        self._diag_timer.stop()
         self.timer.stop()
         self.audio.close()
         self.fft_thread.quit()
