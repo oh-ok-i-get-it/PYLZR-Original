@@ -81,7 +81,7 @@ class SoundMode:
         self._output.press_note(note)
         print(f"{text}\t{txt.B}{self.HIGH_COLOR[hm]}HIGH{txt.BOFF} {hm} SENT <<<<\n{txt.IOFF}")
         print(f"{txt.WHITE}\t|| DUAL MODE: {mode_label} ||\n\tMIDI NOTE: {note}")
-        logger.info(f'SoundMode: LOW={lm} HIGH={hm} | DualMode={mode_label} | MIDI={note}')
+        logger.info(f'SoundMode: LOW={lm} HIGH={hm} | DualMode={mode_label} | MIDI={note}', '#ffffff')
 
     def check_mode(self, low_avg: float, high_avg: float):
         prev = (self.low_mode, self.high_mode)

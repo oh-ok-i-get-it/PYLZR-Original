@@ -46,8 +46,8 @@ class MIDIOutput:
     def toggle_sm(self):
         if self.sm_ON:
             print(f"\n{self._SM_OFF_TXT}#### {self._SM_OFF_TXT_B}SOUND MODE OFF{self._SM_OFF_TXT} ####\n{txt.RESET}")
-            logger.info('Sound mode: OFF')
+            logger.info('Sound mode: OFF', '#e74c3c')
         else:
             print(f"\n{self._SM_ON_TXT}#### {self._SM_ON_TXT_B}SOUND MODE ON{self._SM_ON_TXT} ####\n{txt.RESET}")
-            logger.info('Sound mode: ON')
+            logger.info('Sound mode: ON', '#2ecc71')
         self.sm_ON = not self.sm_ON

@@ -93,5 +93,5 @@ class KeyboardMapper:
                 txt.RESET + txt.CYAN + txt.B + f' {name}' + txt.RESET
             )
             print(f'midi value: {note}')
-            logger.info(f'Key: {name} → MIDI {note}')
+            logger.info(f'Key: {name} → MIDI {note}', '#00bcd4')
             self._midi.press_note(note)
