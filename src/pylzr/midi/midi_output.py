@@ -19,9 +19,11 @@ class MIDIOutput:
         available = self.midiout.get_ports()
         if available:
             self.midiout.open_port(0)
+            self.port_name = available[0]
             logger.info(f'MIDI: opened port "{available[0]}"')
         else:
             self.midiout.open_virtual_port('PyLZR-MIDI')
+            self.port_name = 'PyLZR-MIDI (virtual)'
             logger.info('MIDI: created virtual port "PyLZR-MIDI"')
 
         self.sm_ON = False

@@ -9,16 +9,21 @@ class AudioInput:
 
     Owns the hardware stream lifecycle. Call read_chunk() each frame and
     close() on shutdown.
+
+    Pass device_index to open a specific input device; None uses the system
+    default. Call get_input_devices() on an existing instance to enumerate
+    available devices for the UI.
     """
 
-    def __init__(self, chunk: int = CHUNK, rate: int = SAMPLE_RATE):
+    def __init__(self, chunk: int = CHUNK, rate: int = SAMPLE_RATE,
+                 device_index: int | None = None):
         self.chunk = chunk
         self.rate  = rate
 
         # FFT bin boundaries matching FFTWorker's split points
-        self.lo_cut  = chunk // 128
-        self.med_cut = chunk // 4
-        self.hi_cut  = chunk // 2 + 1
+        self.lo_cut   = chunk // 128
+        self.med_cut  = chunk // 4
+        self.hi_cut   = chunk // 2 + 1
         self.sp_scale = 2.0 / (128.0 * chunk)
 
         # Precomputed axes for waveform and spectrum plots
@@ -30,15 +35,41 @@ class AudioInput:
         self.timer_interval_ms = int(chunk / rate * 1000)
 
         self._pa = pyaudio.PyAudio()
+
+        # Resolve device index and human-readable name
+        try:
+            dev_info = (
+                self._pa.get_default_input_device_info()
+                if device_index is None
+                else self._pa.get_device_info_by_index(device_index)
+            )
+            self.device_index = int(dev_info['index'])
+            self.device_name  = dev_info['name']
+        except Exception:
+            self.device_index = device_index
+            self.device_name  = 'Unknown'
+
         self._stream = self._pa.open(
             format=pyaudio.paInt16,
             channels=1,
             rate=rate,
             input=True,
-            output=True,
             frames_per_buffer=chunk,
+            input_device_index=self.device_index,
         )
-        logger.info(f'Audio: stream opened (chunk={chunk}, rate={rate} Hz)')
+        logger.info(f'Audio: opened "{self.device_name}" (chunk={chunk}, rate={rate}Hz)')
+
+    def get_input_devices(self) -> list[tuple[int, str]]:
+        """Return (index, name) for every available input device."""
+        devices = []
+        for i in range(self._pa.get_device_count()):
+            try:
+                info = self._pa.get_device_info_by_index(i)
+                if info.get('maxInputChannels', 0) > 0:
+                    devices.append((int(info['index']), info['name']))
+            except Exception:
+                pass
+        return devices
 
     def read_chunk(self) -> np.ndarray:
         """Read one chunk from the hardware stream. Returns int16 array."""
@@ -49,4 +80,4 @@ class AudioInput:
         self._stream.stop_stream()
         self._stream.close()
         self._pa.terminate()
-        logger.info('Audio: stream closed')
+        logger.info(f'Audio: stream closed ("{self.device_name}")')
