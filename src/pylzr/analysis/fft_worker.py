@@ -21,7 +21,7 @@ class FFTWorker(QObject):
 
     @pyqtSlot(np.ndarray)
     def process(self, wf_buffer: np.ndarray):
-        spec = np.abs(rfft(wf_buffer - 128)) * self.sp_scale
+        spec = np.abs(rfft(wf_buffer)) * self.sp_scale
         low  = spec[:self.lo_cut]
         med  = spec[self.lo_cut:self.med_cut]
         hi   = spec[self.med_cut:self.hi_cut]

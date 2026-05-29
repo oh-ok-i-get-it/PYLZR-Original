@@ -1,4 +1,5 @@
 from ..core import text_styles as txt
+from ..core.app_logger import logger
 
 # Maps Qt key codes to MIDI note numbers (60 = C3, sequential from there).
 _KEY_TO_MIDI = {
@@ -92,4 +93,5 @@ class KeyboardMapper:
                 txt.RESET + txt.CYAN + txt.B + f' {name}' + txt.RESET
             )
             print(f'midi value: {note}')
+            logger.info(f'Key: {name} → MIDI {note}', '#00bcd4')
             self._midi.press_note(note)

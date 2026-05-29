@@ -1,6 +1,7 @@
 from bisect import bisect_right
 from ..core import DM_SEMITONE_OFFSET, MIDI_SPACE_NOTE
 from ..core import text_styles as txt
+from ..core.app_logger import logger
 
 
 class SoundMode:
@@ -47,7 +48,8 @@ class SoundMode:
         self.low_prev_mode  = 0
         self.high_prev_mode = 0
 
-        self.dm_on = True
+        self.dm_on        = True
+        self.dm_mode_label = 1
 
         self._low_thresholds  = [low_quiet_cutoff,  low_mode1_cutoff,  low_mode2_cutoff]
         self._high_thresholds = [high_quiet_cutoff, high_mode1_cutoff, high_mode2_cutoff]
@@ -75,9 +77,11 @@ class SoundMode:
             note       = midi_base + DM_SEMITONE_OFFSET
             mode_label = 2
 
+        self.dm_mode_label = mode_label
         self._output.press_note(note)
         print(f"{text}\t{txt.B}{self.HIGH_COLOR[hm]}HIGH{txt.BOFF} {hm} SENT <<<<\n{txt.IOFF}")
         print(f"{txt.WHITE}\t|| DUAL MODE: {mode_label} ||\n\tMIDI NOTE: {note}")
+        logger.info(f'SoundMode: LOW={lm} HIGH={hm} | DualMode={mode_label} | MIDI={note}', '#ffffff')
 
     def check_mode(self, low_avg: float, high_avg: float):
         prev = (self.low_mode, self.high_mode)
@@ -99,6 +103,10 @@ class SoundMode:
 
     def get_dm_mode_bool(self) -> bool:
         return self.dm_on
+
+    @property
+    def dm_countdown(self) -> int:
+        return int(self._dm_toggle_rate - self._dm_count)
 
     def set_cutoff(self, cutoff: float, mode: int, *, high: bool = False):
         if high:
