@@ -113,9 +113,6 @@ class PyLZR(QWidget):
             self.soundmode.advance_dm_counter()
             if self.midi_out.sm_ON:
                 self.soundmode.check_mode(low_avg, high_avg)
-            self.controls.status_label.setText(
-                f'Low Avg: {low_avg:.6f} | High Avg: {high_avg:.6f}'
-            )
             self.avg_panel.append_avgs(low_avg, high_avg)
             self.controls.update_sound_modes(self.soundmode.low_mode, self.soundmode.high_mode)
             self.controls.update_dual_mode(self.soundmode.dm_mode_label, self.soundmode.dm_countdown)
