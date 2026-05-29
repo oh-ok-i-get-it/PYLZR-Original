@@ -13,6 +13,10 @@ _MODE_DISPLAY_STYLE = (
     'QLabel {{ background-color: #111; color: {color}; border: 1px solid #444;'
     ' font-weight: bold; font-size: 13px; padding: 2px 6px; }}'
 )
+_SMALL_DISPLAY_STYLE = (
+    'QLabel {{ background-color: #0d0d0d; color: {color}; border: 1px solid #333;'
+    ' font-size: 10px; padding: 1px 4px; }}'
+)
 
 
 class ControlPanel(QWidget):
@@ -72,12 +76,18 @@ class ControlPanel(QWidget):
         )
         self._sm_button.clicked.connect(lambda: self.sound_mode_toggled.emit())
 
+        # Dual mode + count displays (small, muted — right of button)
+        self._dm_display       = self._make_small_display('DM', '—', '#666')
+        self._dm_count_display = self._make_small_display('CNT', '—', '#555')
+
         # Current sound mode index displays (LOW / HIGH)
         self._low_mode_display  = self._make_mode_display('LOW',  '—', '#d4a017')
         self._high_mode_display = self._make_mode_display('HIGH', '—', '#9b59b6')
 
         top_row.addWidget(rate_group)
         top_row.addWidget(self._sm_button)
+        top_row.addWidget(self._dm_display)
+        top_row.addWidget(self._dm_count_display)
         top_row.addWidget(self._low_mode_display)
         top_row.addWidget(self._high_mode_display)
         top_row.addStretch(1)
@@ -123,6 +133,14 @@ class ControlPanel(QWidget):
         self.setLayout(root)
 
     @staticmethod
+    def _make_small_display(label: str, value: str, color: str) -> QLabel:
+        lbl = QLabel(f'{label}\n{value}')
+        lbl.setAlignment(Qt.AlignCenter)
+        lbl.setFixedSize(38, 40)
+        lbl.setStyleSheet(_SMALL_DISPLAY_STYLE.format(color=color))
+        return lbl
+
+    @staticmethod
     def _make_mode_display(band: str, value: str, color: str) -> QLabel:
         lbl = QLabel(f'{band}\n{value}')
         lbl.setAlignment(Qt.AlignCenter)
@@ -135,9 +153,12 @@ class ControlPanel(QWidget):
         self._sm_button.setText('Sound Mode: ON' if is_on else 'Sound Mode: OFF')
 
     def update_sound_modes(self, low_mode: int, high_mode: int):
-        """Update the LOW/HIGH mode index displays."""
         self._low_mode_display.setText(f'LOW\n{"—" if low_mode < 0 else low_mode}')
         self._high_mode_display.setText(f'HIGH\n{"—" if high_mode < 0 else high_mode}')
+
+    def update_dual_mode(self, dm_mode: int, dm_count: int):
+        self._dm_display.setText(f'DM\n{dm_mode}')
+        self._dm_count_display.setText(f'CNT\n{dm_count}')
 
     def _on_count_rate(self, val: int):
         self._count_label.setText(str(val))

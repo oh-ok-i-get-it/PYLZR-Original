@@ -118,6 +118,7 @@ class PyLZR(QWidget):
             )
             self.avg_panel.append_avgs(low_avg, high_avg)
             self.controls.update_sound_modes(self.soundmode.low_mode, self.soundmode.high_mode)
+            self.controls.update_dual_mode(self.soundmode.dm_mode_label, self.soundmode.dm_countdown)
             print(
                 f'{txt.YELLOW}{txt.I}LOW: {txt.IOFF}{txt.B}{low_avg:.2f}{txt.BOFF}\t'
                 f'{txt.PURPLE}{txt.I}HIGH: {txt.IOFF}{txt.B}{high_avg:.2f}{txt.RESET}'
