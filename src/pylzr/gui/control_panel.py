@@ -31,6 +31,7 @@ class ControlPanel(QWidget):
     low_cutoff_changed  = pyqtSignal(int, int)  # (mode_index, value)
     high_cutoff_changed = pyqtSignal(int, int)  # (mode_index, value)
     sound_mode_toggled  = pyqtSignal()
+    settings_toggled    = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -91,6 +92,23 @@ class ControlPanel(QWidget):
         top_row.addWidget(self._low_mode_display)
         top_row.addWidget(self._high_mode_display)
         top_row.addStretch(1)
+
+        # Gear / settings button — pinned to the far right of the top row
+        self._gear_btn = QPushButton('⚙')
+        self._gear_btn.setFixedSize(30, 30)
+        self._gear_btn.setCheckable(True)
+        self._gear_btn.setToolTip('Settings')
+        self._gear_btn.setStyleSheet(
+            'QPushButton {'
+            '  background: transparent; color: #555; font-size: 17px;'
+            '  border: none; border-radius: 4px;'
+            '}'
+            'QPushButton:hover { color: #c9d1d9; background: #1e1e1e; }'
+            'QPushButton:checked { color: #58a6ff; background: #1a1a1a; }'
+        )
+        self._gear_btn.clicked.connect(lambda: self.settings_toggled.emit())
+        top_row.addWidget(self._gear_btn)
+
         root.addLayout(top_row)
 
         # ── Cutoff row: low (left) | high (right) ────────────────────────
@@ -151,6 +169,9 @@ class ControlPanel(QWidget):
     def sync_sound_mode(self, is_on: bool):
         self._sm_button.setChecked(is_on)
         self._sm_button.setText('Sound Mode: ON' if is_on else 'Sound Mode: OFF')
+
+    def sync_gear(self, is_open: bool):
+        self._gear_btn.setChecked(is_open)
 
     def update_sound_modes(self, low_mode: int, high_mode: int):
         self._low_mode_display.setText(f'LOW\n{"—" if low_mode < 0 else low_mode}')

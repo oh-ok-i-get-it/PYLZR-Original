@@ -2,7 +2,7 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout
 from PyQt5.QtGui import QKeyEvent
-from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import QTimer, Qt, QThread, QPoint, pyqtSignal, pyqtSlot
 
 from ..core import (
     AVG_COUNT_RATE_DEFAULT, DM_TIME_RATE,
@@ -16,6 +16,7 @@ from ..analysis import FFTWorker, AudioAnalyzer, SoundMode
 from ..midi     import MIDIOutput, KeyboardMapper
 from .spectrum_widget import SpectrumWidget
 from .control_panel   import ControlPanel
+from .settings_panel  import SettingsPanel
 from .log_panel       import LogPanel, AvgPanel
 
 
@@ -62,6 +63,15 @@ class PyLZR(QWidget):
         layout.addLayout(bottom_row)
         self.setLayout(layout)
 
+        # Settings panel floats over the window as a child widget (no layout slot)
+        self.settings_panel = SettingsPanel(self)
+        self.settings_panel.hide()
+
+        # Populate connection indicators once subsystems are live
+        self.settings_panel.set_audio_status(True, f'{self.audio.rate // 1000}kHz')
+        self.settings_panel.set_midi_status(True, self.midi_out.port_name)
+        self.settings_panel.set_dmx_status()
+
         # Logger → log panel
         logger.message_logged.connect(self.log_panel.append_message)
 
@@ -70,6 +80,10 @@ class PyLZR(QWidget):
         self.controls.low_cutoff_changed.connect(self._on_low_cutoff)
         self.controls.high_cutoff_changed.connect(self._on_high_cutoff)
         self.controls.sound_mode_toggled.connect(self._toggle_sound_mode)
+        self.controls.settings_toggled.connect(self._toggle_settings)
+
+        # Settings panel signals
+        self.settings_panel.control_mode_changed.connect(self._on_control_mode_changed)
 
         # FFT worker thread
         self.fft_thread = QThread(self)
@@ -139,9 +153,35 @@ class PyLZR(QWidget):
         self.midi_out.toggle_sm()
         self.controls.sync_sound_mode(self.midi_out.sm_ON)
 
+    def _toggle_settings(self):
+        visible = not self.settings_panel.isVisible()
+        if visible:
+            gear = self.controls._gear_btn
+            # Bottom-right corner of gear button in main window coordinates
+            br = gear.mapTo(self, QPoint(gear.width(), gear.height()))
+            pw = self.settings_panel.width()
+            # Right-align panel to gear button; clamp so it doesn't clip left edge
+            x = max(0, br.x() - pw)
+            self.settings_panel.move(x, br.y())
+            self.settings_panel.raise_()
+        self.settings_panel.setVisible(visible)
+        self.controls.sync_gear(visible)
+
+    def _on_control_mode_changed(self, mode: str):
+        if mode == 'DMX':
+            logger.info('Control mode: DMX selected (not yet implemented)', '#e3b341')
+
     # ------------------------------------------------------------------
     # Qt event overrides
     # ------------------------------------------------------------------
+
+    def resizeEvent(self, event):
+        if self.settings_panel.isVisible():
+            gear = self.controls._gear_btn
+            br = gear.mapTo(self, QPoint(gear.width(), gear.height()))
+            pw = self.settings_panel.width()
+            self.settings_panel.move(max(0, br.x() - pw), br.y())
+        super().resizeEvent(event)
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == 16777248:  # Left Shift — toggle sound mode
