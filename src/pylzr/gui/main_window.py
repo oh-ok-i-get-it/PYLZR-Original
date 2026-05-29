@@ -67,10 +67,13 @@ class PyLZR(QWidget):
         self.settings_panel = SettingsPanel(self)
         self.settings_panel.hide()
 
-        # Populate connection indicators once subsystems are live
-        self.settings_panel.set_audio_status(True, f'{self.audio.rate // 1000}kHz')
+        # Populate connection indicators and device list once subsystems are live
+        self.settings_panel.set_audio_status(True, self.audio.device_name)
         self.settings_panel.set_midi_status(True, self.midi_out.port_name)
         self.settings_panel.set_dmx_status()
+        self.settings_panel.set_audio_devices(
+            self.audio.get_input_devices(), self.audio.device_index
+        )
 
         # Logger → log panel
         logger.message_logged.connect(self.log_panel.append_message)
@@ -83,6 +86,7 @@ class PyLZR(QWidget):
         self.controls.settings_toggled.connect(self._toggle_settings)
 
         # Settings panel signals
+        self.settings_panel.audio_device_changed.connect(self._on_audio_device_changed)
         self.settings_panel.control_mode_changed.connect(self._on_control_mode_changed)
 
         # FFT worker thread
@@ -166,6 +170,20 @@ class PyLZR(QWidget):
             self.settings_panel.raise_()
         self.settings_panel.setVisible(visible)
         self.controls.sync_gear(visible)
+
+    def _on_audio_device_changed(self, device_index: int):
+        self.timer.stop()
+        old_audio = self.audio
+        try:
+            self.audio = AudioInput(device_index=device_index)
+            self.spectrum_widget._audio = self.audio
+            old_audio.close()
+            self.settings_panel.set_audio_status(True, self.audio.device_name)
+        except Exception as e:
+            self.audio = old_audio
+            logger.error(f'Audio device switch failed: {e}')
+            self.settings_panel.set_audio_status(False, 'Switch failed')
+        self.timer.start(self.audio.timer_interval_ms)
 
     def _on_control_mode_changed(self, mode: str):
         if mode == 'DMX':
