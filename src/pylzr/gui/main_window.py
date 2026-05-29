@@ -1,6 +1,6 @@
 import sys
 import numpy as np
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout
 from PyQt5.QtGui import QKeyEvent
 from PyQt5.QtCore import QTimer, Qt, QThread, pyqtSignal, pyqtSlot
 
@@ -16,7 +16,7 @@ from ..analysis import FFTWorker, AudioAnalyzer, SoundMode
 from ..midi     import MIDIOutput, KeyboardMapper
 from .spectrum_widget import SpectrumWidget
 from .control_panel   import ControlPanel
-from .log_panel       import LogPanel
+from .log_panel       import LogPanel, AvgPanel
 
 
 class PyLZR(QWidget):
@@ -50,11 +50,16 @@ class PyLZR(QWidget):
         self.spectrum_widget = SpectrumWidget(self.audio)
         self.controls        = ControlPanel()
         self.log_panel       = LogPanel()
+        self.avg_panel       = AvgPanel()
+
+        bottom_row = QHBoxLayout()
+        bottom_row.addWidget(self.log_panel, stretch=3)
+        bottom_row.addWidget(self.avg_panel, stretch=1)
 
         layout = QVBoxLayout()
         layout.addWidget(self.controls)
         layout.addWidget(self.spectrum_widget)
-        layout.addWidget(self.log_panel)
+        layout.addLayout(bottom_row)
         self.setLayout(layout)
 
         # Logger → log panel
@@ -111,6 +116,7 @@ class PyLZR(QWidget):
             self.controls.status_label.setText(
                 f'Low Avg: {low_avg:.6f} | High Avg: {high_avg:.6f}'
             )
+            self.avg_panel.append_avgs(low_avg, high_avg)
             print(
                 f'{txt.YELLOW}{txt.I}LOW: {txt.IOFF}{txt.B}{low_avg:.2f}{txt.BOFF}\t'
                 f'{txt.PURPLE}{txt.I}HIGH: {txt.IOFF}{txt.B}{high_avg:.2f}{txt.RESET}'
